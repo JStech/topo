@@ -1,13 +1,11 @@
 #!/usr/bin/env python3
-import urllib.request
-import urllib.parse
-import time
 import itertools
 import json
+import sys
+import time
+import urllib.parse
+import urllib.request
 
-# 40.289363, -105.647206
-# 40.227819, -105.538757
-# 5.72 miles e/w, 4.25 miles n/s
 co_lat = (40.227819, 40.289363)
 co_lon = (-105.647206, -105.538757)
 v_res = 21
