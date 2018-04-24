@@ -24,6 +24,12 @@ lat_lim = sorted(list(map(float,
 lon_lim = sorted(list(map(float,
   [topoconfig['Point 1']['lon'], topoconfig['Point 2']['lon']])))
 
+if 'file' not in topoconfig['Output']:
+  print("Output file not specified. Defaulting to `topo.stl'.")
+  out_file = 'topo.stl'
+else:
+  out_file = topoconfig['Output']['file']
+
 output_size = {'lat': None, 'lon': None, 'el': None}
 for k in output_size:
   if k+'_size' in topoconfig['Output']:
@@ -56,7 +62,6 @@ if output_pts['lat'] is None:
   output_pts['lat'] = int(output_pts['lon'] / aspect_ratio)
 if output_pts['lon'] is None:
   output_pts['lon'] = int(output_pts['lat'] * aspect_ratio)
-
 
 # fetch topo data
 locations_per_request = 256
@@ -91,7 +96,7 @@ for locations in grouper(all_locations, locations_per_request):
 # output STL file
 lats = set()
 lons = set()
-for lt, ln in elev_data:
+for ln, lt in elev_data:
   lats.add(lt)
   lons.add(ln)
 el_lim = (min(map(float, elev_data.values())),
@@ -107,43 +112,47 @@ for i in range(len(lats)):
         (lat_lim[1] - lat_lim[0]))
     ln = output_size['lon'] * ((float(lons[j]) - lon_lim[0]) /
         (lon_lim[1] - lon_lim[0]))
-    el = output_size['el'] * ((float(elev_data[(lats[i], lons[j])]) - el_lim[0])
-        / (el_lim[1] - el_lim[0]));
+    el = output_size['el'] * ((float(elev_data[(lons[j], lats[i])]) - el_lim[0])
+        / (el_lim[1] - el_lim[0]))
     elev_data_scaled[(i, j)] = (lt, ln, el)
 
-print("solid Topo")
-for i in range(len(lats)-1):
-  for j in range(len(lons)-1):
-    print("facet normal 0 0 0")
-    print("  outer loop")
-    print("    vertex {} {} {}".format(
-      elev_data_scaled[(i, j)][1],
-      elev_data_scaled[(i, j)][0],
-      elev_data_scaled[(i, j)][2]))
-    print("    vertex {} {} {}".format(
-      elev_data_scaled[(i+1, j)][1],
-      elev_data_scaled[(i+1, j)][0],
-      elev_data_scaled[(i+1, j)][2]))
-    print("    vertex {} {} {}".format(
-      elev_data_scaled[(i, j+1)][1],
-      elev_data_scaled[(i, j+1)][0],
-      elev_data_scaled[(i, j+1)][2]))
-    print("  endloop")
-    print("endfacet")
-    print("facet normal 0 0 0")
-    print("  outer loop")
-    print("    vertex {} {} {}".format(
-      elev_data_scaled[(i+1, j)][1],
-      elev_data_scaled[(i+1, j)][0],
-      elev_data_scaled[(i+1, j)][2]))
-    print("    vertex {} {} {}".format(
-      elev_data_scaled[(i+1, j+1)][1],
-      elev_data_scaled[(i+1, j+1)][0],
-      elev_data_scaled[(i+1, j+1)][2]))
-    print("    vertex {} {} {}".format(
-      elev_data_scaled[(i, j+1)][1],
-      elev_data_scaled[(i, j+1)][0],
-      elev_data_scaled[(i, j+1)][2]))
-    print("  endloop")
-    print("endfacet")
-print("endsolid Longs")
+lat_prec = int(-math.log(output_size['lat']/output_pts['lat']))+2
+lon_prec = int(-math.log(output_size['lon']/output_pts['lon']))+2
+el_prec = int(-math.log(output_size['lat']))+3
+with open(out_file, "w") as of:
+  print("solid Topo", file=of)
+  for i in range(len(lats)-1):
+    for j in range(len(lons)-1):
+      print("facet normal 0 0 0", file=of)
+      print("  outer loop", file=of)
+      print("    vertex {0:{1}f} {2:{3}f} {4:{5}f}".format(
+        elev_data_scaled[(i, j)][1], lon_prec,
+        elev_data_scaled[(i, j)][0], lat_prec,
+        elev_data_scaled[(i, j)][2], el_prec), file=of)
+      print("    vertex {0:{1}f} {2:{3}f} {4:{5}f}".format(
+        elev_data_scaled[(i+1, j)][1], lon_prec,
+        elev_data_scaled[(i+1, j)][0], lat_prec,
+        elev_data_scaled[(i+1, j)][2], el_prec), file=of)
+      print("    vertex {0:{1}f} {2:{3}f} {4:{5}f}".format(
+        elev_data_scaled[(i, j+1)][1], lon_prec,
+        elev_data_scaled[(i, j+1)][0], lat_prec,
+        elev_data_scaled[(i, j+1)][2], el_prec), file=of)
+      print("  endloop", file=of)
+      print("endfacet", file=of)
+      print("facet normal 0 0 0", file=of)
+      print("  outer loop", file=of)
+      print("    vertex {0:{1}f} {2:{3}f} {4:{5}f}".format(
+        elev_data_scaled[(i+1, j)][1], lon_prec,
+        elev_data_scaled[(i+1, j)][0], lat_prec,
+        elev_data_scaled[(i+1, j)][2], el_prec), file=of)
+      print("    vertex {0:{1}f} {2:{3}f} {4:{5}f}".format(
+        elev_data_scaled[(i+1, j+1)][1], lon_prec,
+        elev_data_scaled[(i+1, j+1)][0], lat_prec,
+        elev_data_scaled[(i+1, j+1)][2], el_prec), file=of)
+      print("    vertex {0:{1}f} {2:{3}f} {4:{5}f}".format(
+        elev_data_scaled[(i, j+1)][1], lon_prec,
+        elev_data_scaled[(i, j+1)][0], lat_prec,
+        elev_data_scaled[(i, j+1)][2], el_prec), file=of)
+      print("  endloop", file=of)
+      print("endfacet", file=of)
+  print("endsolid Topo", file=of)
