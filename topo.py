@@ -1,32 +1,64 @@
 #!/usr/bin/env python3
 from collections import defaultdict
-import argparse
+import configparser
 import itertools
 import json
+import math
 import sys
 import time
 import urllib.parse
 import urllib.request
 
-# usage
-# topo.py lat1 lon1 lat2 lon2 pts1 pts2
-parser = argparse.ArgumentParser(description=
-    "Download topographical data for a region")
-parser.add_argument("lat1", type=float, nargs=1)
-parser.add_argument("lon1", type=float, nargs=1)
-parser.add_argument("lat2", type=float, nargs=1)
-parser.add_argument("lon2", type=float, nargs=1)
-parser.add_argument("points1", type=int, nargs=1)
-parser.add_argument("points2", type=int, nargs="?")
-args = parser.parse_args()
-print(args)
-exit()
+if len(sys.argv) != 2:
+  print("Usage: {} topo_config_file.conf".format(sys.argv[0]), file=sys.stderr)
+  exit(1)
 
-co_lat = (40.227819, 40.289363)
-co_lon = (-105.647206, -105.538757)
-v_res = 21
-h_res = 28
+# Parse config file
+topoconfig = configparser.ConfigParser()
+topoconfig.read(sys.argv[1])
 
+api_key = topoconfig['Gmaps']['APIkey']
+
+lat = sorted(list(map(float,
+  [topoconfig['Point 1']['lat'], topoconfig['Point 2']['lat']])))
+lon = sorted(list(map(float,
+  [topoconfig['Point 1']['lon'], topoconfig['Point 2']['lon']])))
+
+output_size = {'lat': None, 'lon': None, 'h': None}
+for k in output_size:
+  if k+'_size' in topoconfig['Output']:
+    output_size[k] = float(topoconfig['Output'][k+'_size'])
+
+if output_size['lat'] is None and output_size['lon'] is None:
+  print("At least one of lat_size, lon_size must be specified", file=sys.stderr)
+  exit(2)
+
+if output_size['h'] is None:
+  print("h_size must be specified", file=sys.stderr)
+  exit(2)
+
+output_pts = {'lat': None, 'lon': None}
+for k in output_pts:
+  if k+'_pts' in topoconfig['Output']:
+    output_pts[k] = int(topoconfig['Output'][k+'_pts'])
+
+if output_pts['lat'] is None and output_pts['lon'] is None:
+  print("At least one of lat_pts, lon_pts must be specified", file=sys.stderr)
+  exit(2)
+
+cos_lat = math.cos(math.pi * sum(lat) / 360)
+aspect_ratio = (lon[1] - lon[0])*cos_lat / (lat[1] - lat[0])
+if output_size['lat'] is None:
+  output_size['lat'] = output_size['lon'] / aspect_ratio
+if output_size['lon'] is None:
+  output_size['lon'] = output_size['lat'] * aspect_ratio
+if output_pts['lat'] is None:
+  output_pts['lat'] = int(output_pts['lon'] / aspect_ratio)
+if output_pts['lon'] is None:
+  output_pts['lon'] = int(output_pts['lat'] * aspect_ratio)
+
+
+# fetch topo data
 locations_per_request = 256
 
 def grouper(iterable, n, fillvalue=None):
@@ -36,22 +68,37 @@ def grouper(iterable, n, fillvalue=None):
   return itertools.zip_longest(*args, fillvalue=fillvalue)
 
 all_locations = itertools.product(
-    (co_lat[0] + (co_lat[1] - co_lat[0])*i/v_res for i in range(v_res+1)),
-    (co_lon[0] + (co_lon[1] - co_lon[0])*i/h_res for i in range(h_res+1)))
+    (lat[0] + (lat[1] - lat[0])*i/output_pts['lat'] for i in
+      range(output_pts['lat']+1)),
+    (lon[0] + (lon[1] - lon[0])*i/output_pts['lon'] for i in
+      range(output_pts['lon']+1)))
 
-with open("gmaps_api_key.txt") as api_key_file:
-  api_key = api_key_file.readline().strip()
 base_url = "https://maps.googleapis.com/maps/api/elevation/json?key="+api_key+"&locations="
 
-with open("elev_data.txt", "w") as out_file:
-  for locations in grouper(all_locations, locations_per_request):
-    url = base_url + urllib.parse.quote("|".join("{:.4f},{:.4f}".format(*location) for location in locations if location is not None))
-    resp = urllib.request.urlopen(url)
-    s = resp.read().decode()
-    jo = json.loads(s)
-    for r in jo['results']:
-      print(r['location']['lng'], r['location']['lat'], r['elevation'], file=out_file)
-    time.sleep(0.1)
+elev_data = {}
+lat_precision = int(-math.log((lat[1] - lat[0])/output_pts['lat'], 10))+2
+lon_precision = int(-math.log((lon[1] - lon[0])/output_pts['lon'], 10))+2
+format_string = "{:."+str(lat_precision)+"f},{:."+str(lon_precision)+"f}"
+for locations in grouper(all_locations, locations_per_request):
+  url = base_url + urllib.parse.quote("|".join(format_string.format(*location) for location in locations if location is not None))
+  print(url)
+  resp = urllib.request.urlopen(url)
+  s = resp.read().decode()
+  jo = json.loads(s, parse_float=str)
+  for r in jo['results']:
+    elev_data[(r['location']['lng'], r['location']['lat'])] = r['elevation']
+  time.sleep(0.1)
+
+print(elev_data)
+exit()
+
+# output STL file
+lats = set()
+lons = set()
+rounded_data = {}
+for (lat, lon), el in elev_data.items():
+  lats.insert(round(lat, lat_precision))
+  lons.insert(round(lon, lon_precision))
 
 
 
