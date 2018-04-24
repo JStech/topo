@@ -19,12 +19,12 @@ topoconfig.read(sys.argv[1])
 
 api_key = topoconfig['Gmaps']['APIkey']
 
-lat = sorted(list(map(float,
+lat_lim = sorted(list(map(float,
   [topoconfig['Point 1']['lat'], topoconfig['Point 2']['lat']])))
-lon = sorted(list(map(float,
+lon_lim = sorted(list(map(float,
   [topoconfig['Point 1']['lon'], topoconfig['Point 2']['lon']])))
 
-output_size = {'lat': None, 'lon': None, 'h': None}
+output_size = {'lat': None, 'lon': None, 'el': None}
 for k in output_size:
   if k+'_size' in topoconfig['Output']:
     output_size[k] = float(topoconfig['Output'][k+'_size'])
@@ -33,8 +33,8 @@ if output_size['lat'] is None and output_size['lon'] is None:
   print("At least one of lat_size, lon_size must be specified", file=sys.stderr)
   exit(2)
 
-if output_size['h'] is None:
-  print("h_size must be specified", file=sys.stderr)
+if output_size['el'] is None:
+  print("el_size must be specified", file=sys.stderr)
   exit(2)
 
 output_pts = {'lat': None, 'lon': None}
@@ -46,8 +46,8 @@ if output_pts['lat'] is None and output_pts['lon'] is None:
   print("At least one of lat_pts, lon_pts must be specified", file=sys.stderr)
   exit(2)
 
-cos_lat = math.cos(math.pi * sum(lat) / 360)
-aspect_ratio = (lon[1] - lon[0])*cos_lat / (lat[1] - lat[0])
+cos_lat = math.cos(math.pi * sum(lat_lim) / 360)
+aspect_ratio = (lon_lim[1] - lon_lim[0])*cos_lat / (lat_lim[1] - lat_lim[0])
 if output_size['lat'] is None:
   output_size['lat'] = output_size['lon'] / aspect_ratio
 if output_size['lon'] is None:
@@ -68,20 +68,19 @@ def grouper(iterable, n, fillvalue=None):
   return itertools.zip_longest(*args, fillvalue=fillvalue)
 
 all_locations = itertools.product(
-    (lat[0] + (lat[1] - lat[0])*i/output_pts['lat'] for i in
+    (lat_lim[0] + (lat_lim[1] - lat_lim[0])*i/output_pts['lat'] for i in
       range(output_pts['lat']+1)),
-    (lon[0] + (lon[1] - lon[0])*i/output_pts['lon'] for i in
+    (lon_lim[0] + (lon_lim[1] - lon_lim[0])*i/output_pts['lon'] for i in
       range(output_pts['lon']+1)))
 
 base_url = "https://maps.googleapis.com/maps/api/elevation/json?key="+api_key+"&locations="
 
 elev_data = {}
-lat_precision = int(-math.log((lat[1] - lat[0])/output_pts['lat'], 10))+2
-lon_precision = int(-math.log((lon[1] - lon[0])/output_pts['lon'], 10))+2
+lat_precision = int(-math.log((lat_lim[1] - lat_lim[0])/output_pts['lat'], 10))+2
+lon_precision = int(-math.log((lon_lim[1] - lon_lim[0])/output_pts['lon'], 10))+2
 format_string = "{:."+str(lat_precision)+"f},{:."+str(lon_precision)+"f}"
 for locations in grouper(all_locations, locations_per_request):
   url = base_url + urllib.parse.quote("|".join(format_string.format(*location) for location in locations if location is not None))
-  print(url)
   resp = urllib.request.urlopen(url)
   s = resp.read().decode()
   jo = json.loads(s, parse_float=str)
@@ -89,53 +88,62 @@ for locations in grouper(all_locations, locations_per_request):
     elev_data[(r['location']['lng'], r['location']['lat'])] = r['elevation']
   time.sleep(0.1)
 
-print(elev_data)
-exit()
-
 # output STL file
 lats = set()
 lons = set()
-rounded_data = {}
-for (lat, lon), el in elev_data.items():
-  lats.insert(round(lat, lat_precision))
-  lons.insert(round(lon, lon_precision))
+for lt, ln in elev_data:
+  lats.add(lt)
+  lons.add(ln)
+el_lim = (min(map(float, elev_data.values())),
+    max(map(float, elev_data.values())))
 
+lats = sorted(lats, key=float)
+lons = sorted(lons, key=float)
 
+elev_data_scaled = {}
+for i in range(len(lats)):
+  for j in range(len(lons)):
+    lt = output_size['lat'] * ((float(lats[i]) - lat_lim[0]) /
+        (lat_lim[1] - lat_lim[0]))
+    ln = output_size['lon'] * ((float(lons[j]) - lon_lim[0]) /
+        (lon_lim[1] - lon_lim[0]))
+    el = output_size['el'] * ((float(elev_data[(lats[i], lons[j])]) - el_lim[0])
+        / (el_lim[1] - el_lim[0]));
+    elev_data_scaled[(i, j)] = (lt, ln, el)
 
-#!/usr/bin/env python3
-deg_lat = 68.99
-deg_lon = 53.06
-
-elev = defaultdict(dict)
-
-for line in open('elev_data.txt'):
-  (ln, lt, el) = line.split()
-  elev[ln][lt] = el
-
-lns = sorted(elev.keys(), reverse=True)
-lts = sorted(elev[lns[0]].keys())
-
-print("solid Longs")
-for i in range(len(lns)-1):
-  for j in range(len(lts)-1):
+print("solid Topo")
+for i in range(len(lats)-1):
+  for j in range(len(lons)-1):
     print("facet normal 0 0 0")
     print("  outer loop")
-    print("    vertex {} {} {}".format(deg_lon*float(lns[i]),
-      deg_lat*float(lts[j]), 1e-3*float(elev[lns[i]][lts[j]])))
-    print("    vertex {} {} {}".format(deg_lon*float(lns[i+1]),
-      deg_lat*float(lts[j]), 1e-3*float(elev[lns[i+1]][lts[j]])))
-    print("    vertex {} {} {}".format(deg_lon*float(lns[i]),
-      deg_lat*float(lts[j+1]), 1e-3*float(elev[lns[i]][lts[j+1]])))
+    print("    vertex {} {} {}".format(
+      elev_data_scaled[(i, j)][1],
+      elev_data_scaled[(i, j)][0],
+      elev_data_scaled[(i, j)][2]))
+    print("    vertex {} {} {}".format(
+      elev_data_scaled[(i+1, j)][1],
+      elev_data_scaled[(i+1, j)][0],
+      elev_data_scaled[(i+1, j)][2]))
+    print("    vertex {} {} {}".format(
+      elev_data_scaled[(i, j+1)][1],
+      elev_data_scaled[(i, j+1)][0],
+      elev_data_scaled[(i, j+1)][2]))
     print("  endloop")
     print("endfacet")
     print("facet normal 0 0 0")
     print("  outer loop")
-    print("    vertex {} {} {}".format(deg_lon*float(lns[i+1]),
-      deg_lat*float(lts[j]), 1e-3*float(elev[lns[i+1]][lts[j]])))
-    print("    vertex {} {} {}".format(deg_lon*float(lns[i+1]),
-      deg_lat*float(lts[j+1]), 1e-3*float(elev[lns[i+1]][lts[j+1]])))
-    print("    vertex {} {} {}".format(deg_lon*float(lns[i]),
-      deg_lat*float(lts[j+1]), 1e-3*float(elev[lns[i]][lts[j+1]])))
+    print("    vertex {} {} {}".format(
+      elev_data_scaled[(i+1, j)][1],
+      elev_data_scaled[(i+1, j)][0],
+      elev_data_scaled[(i+1, j)][2]))
+    print("    vertex {} {} {}".format(
+      elev_data_scaled[(i+1, j+1)][1],
+      elev_data_scaled[(i+1, j+1)][0],
+      elev_data_scaled[(i+1, j+1)][2]))
+    print("    vertex {} {} {}".format(
+      elev_data_scaled[(i, j+1)][1],
+      elev_data_scaled[(i, j+1)][0],
+      elev_data_scaled[(i, j+1)][2]))
     print("  endloop")
     print("endfacet")
 print("endsolid Longs")
