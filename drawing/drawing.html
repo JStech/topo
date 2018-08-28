@@ -28,6 +28,7 @@
         document.body.appendChild(script);
       }
     </script>
+    <script type="text/javascript" src="./map.js"></script>
   </head>
   <body onload="loadScript()">
     <div id="map"></div><div id="model"></div>
@@ -37,54 +38,11 @@
       Angle: <input type="range" min="-90" max="90" value="0" class="slider"
                                                               id="angle"/>
     </form>
-
-    <script>
-      var map;
-      function initMap() {
-        map = new google.maps.Map(document.getElementById('map'), {
-          center: {lat: 39.61, lng: -105.8},
-          zoom: 12
-        });
-        map.setMapTypeId('terrain');
-        drawBox();
-        map.addListener('center_changed', updateBox);
-      }
-
-      var box;
-      function drawBox() {
-        var boxCoords = [
-        {lat: +0.01, lng: +0.01},
-        {lat: +0.01, lng: -0.01},
-        {lat: -0.01, lng: -0.01},
-        {lat: -0.01, lng: +0.01}];
-        box = new google.maps.Polygon({
-          paths: boxCoords,
-          strokeColor: '#0000FF',
-          strokeOpacity: 0.6,
-          strokeWeight: 5,
-          fillColor: '#0000FF',
-          fillOpacity: 0.3
-        });
-        box.setMap(map);
-        updateBox();
-      }
-
-      function updateBox() {
-        var miles_per_deg = 69.172;
-        var cen = map.getCenter();
-        var w = document.getElementById('width').value / miles_per_deg;
-        var h = document.getElementById('height').value / miles_per_deg;
-        var theta = -document.getElementById('angle').value * Math.PI / 180.;
-        var s = Math.sin(theta);
-        var c = Math.cos(theta);
-        var cos_lat = Math.cos(cen.lat() * Math.PI / 180.);
-        var boxCoords = [
-        {lat: cen.lat()+cos_lat*( h*c+w*s), lng: cen.lng()-h*s+w*c},
-        {lat: cen.lat()+cos_lat*( h*c-w*s), lng: cen.lng()-h*s-w*c},
-        {lat: cen.lat()+cos_lat*(-h*c-w*s), lng: cen.lng()+h*s-w*c},
-        {lat: cen.lat()+cos_lat*(-h*c+w*s), lng: cen.lng()+h*s+w*c}];
-        box.setPath(boxCoords);
-      }
-    </script>
+    <table id="corners">
+      <tr><td id="lat1"></td><td id="lng1"></td></tr>
+      <tr><td id="lat2"></td><td id="lng2"></td></tr>
+      <tr><td id="lat3"></td><td id="lng3"></td></tr>
+      <tr><td id="lat4"></td><td id="lng4"></td></tr>
+    </table>
   </body>
 </html>
