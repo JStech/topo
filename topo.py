@@ -97,9 +97,11 @@ lon_precision = int(-math.log((lon_lim[1] - lon_lim[0])/output_pts['lon'], 10))+
 format_string = "{:."+str(lat_precision)+"f},{:."+str(lon_precision)+"f}"
 for locations in grouper(all_locations, locations_per_request):
   url = base_url + urllib.parse.quote("|".join(format_string.format(*location) for location in locations if location is not None))
+  print("Submitting request . . . ", end="")
   resp = urllib.request.urlopen(url)
   s = resp.read().decode()
   jo = json.loads(s, parse_float=str)
+  print("received", len(jo['results']), "results")
   for r in jo['results']:
     elev_data[(r['location']['lng'], r['location']['lat'])] = r['elevation']
   time.sleep(0.1)
