@@ -5,8 +5,8 @@ var camera, controls, scene, renderer;
 function init() {
 
   scene = new THREE.Scene();
-  scene.background = new THREE.Color( 0xcccccc );
-  scene.fog = new THREE.FogExp2( 0xcccccc, 0.002 );
+  scene.background = new THREE.Color( 0x888888 );
+  scene.fog = new THREE.FogExp2( 0x888888, 0.0002 );
 
   renderer = new THREE.WebGLRenderer( { antialias: true } );
   renderer.setPixelRatio( window.devicePixelRatio );
@@ -28,17 +28,15 @@ function init() {
 
   controls.screenSpacePanning = false;
 
-  controls.minDistance = 100;
+  controls.minDistance = 20;
   controls.maxDistance = 500
 
   controls.maxPolarAngle = Math.PI / 2;
 
-  // world
+  // mountain
   var geometry = makeMesh([-6, -2, 2, 6], [-10, -5, 0, 5, 10],
     [16, 6, 7, 10, 15, 18, 0, 19, 0, 19, 7, 14, 5, 18, 6, 7, 10, 9, 11, 9]);
-
-  var material = new THREE.MeshPhongMaterial( { color: 0xffffff, flatShading: true } );
-
+  var material = new THREE.MeshPhongMaterial({color: 0xffffff, flatShading: true});
   var mesh = new THREE.Mesh( geometry, material );
   mesh.position.x = 0;
   mesh.position.y = 0;
@@ -49,17 +47,23 @@ function init() {
 
   // lights
 
-  var light = new THREE.DirectionalLight( 0xffffff );
-  light.position.set( 1, 1, 1 );
-  scene.add( light );
+  var pointLights = [
+    new THREE.PointLight( 0xffffff, 0.6),
+    new THREE.PointLight( 0xeeffff, 0.6),
+    new THREE.PointLight( 0xaabbff, 0.6),
+  ];
 
-  var light = new THREE.DirectionalLight( 0x002288 );
-  light.position.set( - 1, - 1, - 1 );
-  scene.add( light );
+  pointLights[0].position.set( 0, 100, 50 );
+  scene.add(pointLights[0]);
 
-  var light = new THREE.AmbientLight( 0x222222 );
-  scene.add( light );
+  pointLights[1].position.set( 50, 100, -50 );
+  scene.add(pointLights[1]);
 
+  pointLights[2].position.set( -50, 100, -50 );
+  scene.add(pointLights[2]);
+
+  var ambientLight = new THREE.AmbientLight(0x111111);
+  scene.add(ambientLight);
   //
 
   window.addEventListener( 'resize', onWindowResize, false );
