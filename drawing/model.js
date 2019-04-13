@@ -1,6 +1,4 @@
-if ( ! Detector.webgl ) Detector.addGetWebGLMessage();
-
-var camera, controls, scene, renderer;
+var camera, controls, scene, renderer, elevator;
 
 function init() {
 
@@ -33,24 +31,12 @@ function init() {
 
   controls.maxPolarAngle = Math.PI / 2;
 
-  // mountain
-  var geometry = makeMesh([-6, -2, 2, 6], [-10, -5, 0, 5, 10],
-    [16, 6, 7, 10, 15, 18, 0, 19, 0, 19, 7, 14, 5, 18, 6, 7, 10, 9, 11, 9]);
-  var material = new THREE.MeshPhongMaterial({color: 0xffffff, flatShading: true});
-  var mesh = new THREE.Mesh( geometry, material );
-  mesh.position.x = 0;
-  mesh.position.y = 0;
-  mesh.position.z = 0;
-  mesh.updateMatrix();
-  mesh.matrixAutoUpdate = false;
-  scene.add( mesh );
-
   // lights
 
   var pointLights = [
-    new THREE.PointLight( 0xffffff, 0.6),
-    new THREE.PointLight( 0xeeffff, 0.6),
-    new THREE.PointLight( 0xaabbff, 0.6),
+    new THREE.PointLight( 0xdddddd, 0.6),
+    new THREE.PointLight( 0xccdddd, 0.6),
+    new THREE.PointLight( 0x8899bb, 0.6),
   ];
 
   pointLights[0].position.set( 0, 100, 50 );
@@ -67,6 +53,103 @@ function init() {
   //
 
   window.addEventListener( 'resize', onWindowResize, false );
+}
+
+function fetchElev() {
+  var w = document.getElementById('width').value;
+  var h = document.getElementById('height').value;
+  var x_max = Math.floor(20 * w/h);
+  var y_max = Math.floor(20 * h/w);
+  locations = [];
+  var i=0;
+  var x_vals = [];
+  var y_vals = [];
+  var v = [{}, {}, {}, {}];
+  v[0].lat = parseFloat(document.getElementById('lat1').innerHTML);
+  v[0].lng = parseFloat(document.getElementById('lng1').innerHTML);
+  v[1].lat = parseFloat(document.getElementById('lat2').innerHTML);
+  v[1].lng = parseFloat(document.getElementById('lng2').innerHTML);
+  v[2].lat = parseFloat(document.getElementById('lat3').innerHTML);
+  v[2].lng = parseFloat(document.getElementById('lng3').innerHTML);
+  v[3].lat = parseFloat(document.getElementById('lat4').innerHTML);
+  v[3].lng = parseFloat(document.getElementById('lng4').innerHTML);
+
+  for (var x=0; x<=x_max; x++) {
+    x_vals[x] = x - x_max/2;
+  }
+  for (var y=0; y<=y_max; y++) {
+    y_vals[y] = y - y_max/2;
+  }
+
+  for (var x=0; x<=x_max; x++) {
+    for (var y=0; y<=y_max; y++) {
+      var lat = (x*y*v[0].lat + x*(y_max-y)*v[3].lat + (x_max-x)*y*v[1].lat +
+        (x_max-x)*(y_max-y)*v[2].lat)/(x_max*y_max)
+      var lng = (x*y*v[0].lng + x*(y_max-y)*v[3].lng + (x_max-x)*y*v[1].lng +
+        (x_max-x)*(y_max-y)*v[2].lng)/(x_max*y_max)
+      locations[i] = {lat: lat, lng: lng};
+      i++;
+    }
+  }
+
+  num_elev_calls = Math.ceil(locations.length/400);
+  var i=0;
+  var stop = false;
+  function elevCallLoop() {
+    var t=i;
+    elevator.getElevationForLocations({'locations': locations.slice(i, i+400)},
+      function(results, status) {
+        console.log(status);
+        if (status === 'OK') {
+          makeModel(results, x_vals, y_vals, t);
+        } else if (status == 'OVER_QUERY_LIMIT') {
+          stop = true;
+        } else {
+          console.log(status);
+        }
+      });
+    if (i+400<locations.length && !stop) {
+      setTimeout(elevCallLoop, 1000);
+    }
+    i += 400;
+  };
+  elevCallLoop();
+}
+
+var elev = [];
+function makeModel(results, x_vals, y_vals, start) {
+  var i;
+  for (i=0; i<results.length; i++) {
+    elev[i+start] = results[i].elevation;
+  }
+  num_elev_calls--;
+  if (num_elev_calls > 0) {
+    return;
+  }
+
+  var max_elev = elev[0];
+  var min_elev = elev[0];
+  for (i=0; i<elev.length; i++) {
+    max_elev = Math.max(max_elev, elev[i]);
+    min_elev = Math.min(min_elev, elev[i]);
+  }
+  console.log(max_elev, min_elev);
+  for (i=0; i<elev.length; i++) {
+    elev[i] = 10*(elev[i] - min_elev)/(max_elev - min_elev) + 5;
+  }
+  // mountain
+  scene.remove(scene.getObjectByName('model'));
+  var geometry = makeMesh(x_vals, y_vals, elev);
+  var material = new THREE.MeshPhongMaterial({color: 0xdddddd, flatShading: false});
+  var mesh = new THREE.Mesh( geometry, material );
+  mesh.name = 'model';
+  mesh.position.x = 0;
+  mesh.position.y = 0;
+  mesh.position.z = 0;
+  mesh.updateMatrix();
+  mesh.matrixAutoUpdate = false;
+  scene.add( mesh );
+  return false;
 }
 
 function onWindowResize() {
@@ -98,12 +181,12 @@ function makeMesh(x_values, y_values, z_values) {
   for (i_x = 0; i_x < l_x; i_x++) {
     for (i_y = 0; i_y < l_y; i_y++, i++) {
       geometry.vertices.push(
-        new THREE.Vector3(x_values[i_x], z_values[i], y_values[i_y])
+        new THREE.Vector3(y_values[i_y], z_values[i], x_values[i_x])
       );
       if (i_x > 0 && i_y > 0) {
         geometry.faces.push(
-          new THREE.Face3(i, i-1, i-1-l_y),
-          new THREE.Face3(i, i-1-l_y, i-l_y)
+          new THREE.Face3(i, i-1-l_y, i-1),
+          new THREE.Face3(i, i-l_y, i-1-l_y)
         );
       }
     }
@@ -112,48 +195,49 @@ function makeMesh(x_values, y_values, z_values) {
   // draw sides
   var last_i_x = 0;
   var last_i_y = 0;
-  geometry.vertices.push(new THREE.Vector3(x_values[0], 0, y_values[0]));
+  geometry.vertices.push(new THREE.Vector3(y_values[0], 0, x_values[0]));
   i_x = 0;
   for (i = 1; i < l_y; i++) {
     i_y = i;
-    geometry.vertices.push(new THREE.Vector3(x_values[i_x], 0, y_values[i_y]));
+    geometry.vertices.push(new THREE.Vector3(y_values[i_y], 0, x_values[i_x]));
     geometry.faces.push(
-      new THREE.Face3(N+i-1, N+i, l_y*i_x+i_y),
-      new THREE.Face3(N+i-1, l_y*i_x+i_y, l_y*last_i_x+last_i_y),
+      new THREE.Face3(N+i-1, l_y*i_x+i_y, N+i),
+      new THREE.Face3(N+i-1, l_y*last_i_x+last_i_y, l_y*i_x+i_y),
     );
     last_i_y = i_y;
     last_i_x = i_x;
   }
   for (i = 0; i < l_x; i++) {
     i_x = i;
-    geometry.vertices.push(new THREE.Vector3(x_values[i_x], 0, y_values[i_y]));
+    geometry.vertices.push(new THREE.Vector3(y_values[i_y], 0, x_values[i_x]));
     geometry.faces.push(
-      new THREE.Face3(N+l_y+i-1, N+l_y+i, l_y*i_x+i_y),
-      new THREE.Face3(N+l_y+i-1, l_y*i_x+i_y, l_y*last_i_x+last_i_y),
+      new THREE.Face3(N+l_y+i-1, l_y*i_x+i_y, N+l_y+i),
+      new THREE.Face3(N+l_y+i-1, l_y*last_i_x+last_i_y, l_y*i_x+i_y),
     );
     last_i_y = i_y;
     last_i_x = i_x;
   }
   for (i = 0; i < l_y; i++) {
     i_y = l_y - i - 1;
-    geometry.vertices.push(new THREE.Vector3(x_values[i_x], 0, y_values[i_y]));
+    geometry.vertices.push(new THREE.Vector3(y_values[i_y], 0, x_values[i_x]));
     geometry.faces.push(
-      new THREE.Face3(N+l_y+l_x+i-1, N+l_y+l_x+i, l_y*i_x+i_y),
-      new THREE.Face3(N+l_y+l_x+i-1, l_y*i_x+i_y, l_y*last_i_x+last_i_y),
+      new THREE.Face3(N+l_y+l_x+i-1, l_y*i_x+i_y, N+l_y+l_x+i),
+      new THREE.Face3(N+l_y+l_x+i-1, l_y*last_i_x+last_i_y, l_y*i_x+i_y),
     );
     last_i_y = i_y;
     last_i_x = i_x;
   }
   for (i = 0; i < l_x; i++) {
     i_x = l_x - i - 1;
-    geometry.vertices.push(new THREE.Vector3(x_values[i_x], 0, y_values[i_y]));
+    geometry.vertices.push(new THREE.Vector3(y_values[i_y], 0, x_values[i_x]));
     geometry.faces.push(
-      new THREE.Face3(N+2*l_y+l_x+i-1, N+2*l_y+l_x+i, l_y*i_x+i_y),
-      new THREE.Face3(N+2*l_y+l_x+i-1, l_y*i_x+i_y, l_y*last_i_x+last_i_y),
+      new THREE.Face3(N+2*l_y+l_x+i-1, l_y*i_x+i_y, N+2*l_y+l_x+i),
+      new THREE.Face3(N+2*l_y+l_x+i-1, l_y*last_i_x+last_i_y, l_y*i_x+i_y),
     );
     last_i_y = i_y;
     last_i_x = i_x;
   }
 
+  geometry.computeVertexNormals(true);
   return geometry;
 }

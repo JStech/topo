@@ -1,5 +1,6 @@
 var map;
 function initMap() {
+  elevator = new google.maps.ElevationService;
   map = new google.maps.Map(document.getElementById('map'), {
     center: {lat: 40.255, lng: -105.62},
     zoom: 12
@@ -31,17 +32,17 @@ function drawBox() {
 function updateBox() {
   var miles_per_deg = 69.172;
   var cen = map.getCenter();
-  var w = document.getElementById('width').value / miles_per_deg;
-  var h = document.getElementById('height').value / miles_per_deg;
+  var w = document.getElementById('width').value / miles_per_deg / 2;
+  var h = document.getElementById('height').value / miles_per_deg / 2;
   var theta = -document.getElementById('angle').value * Math.PI / 180.;
   var s = Math.sin(theta);
   var c = Math.cos(theta);
   var cos_lat = Math.cos(cen.lat() * Math.PI / 180.);
   var boxCoords = [
-    {lat: cen.lat()+cos_lat*( h*c+w*s), lng: cen.lng()-h*s+w*c},
-    {lat: cen.lat()+cos_lat*( h*c-w*s), lng: cen.lng()-h*s-w*c},
-    {lat: cen.lat()+cos_lat*(-h*c-w*s), lng: cen.lng()+h*s-w*c},
-    {lat: cen.lat()+cos_lat*(-h*c+w*s), lng: cen.lng()+h*s+w*c}];
+    {lat: cen.lat()+ h*c+w*s, lng: cen.lng()+(-h*s+w*c)/cos_lat},
+    {lat: cen.lat()+ h*c-w*s, lng: cen.lng()+(-h*s-w*c)/cos_lat},
+    {lat: cen.lat()+-h*c-w*s, lng: cen.lng()+( h*s-w*c)/cos_lat},
+    {lat: cen.lat()+-h*c+w*s, lng: cen.lng()+( h*s+w*c)/cos_lat}];
   box.setPath(boxCoords);
   document.getElementById('lat1').innerHTML = boxCoords[0].lat;
   document.getElementById('lng1').innerHTML = boxCoords[0].lng;

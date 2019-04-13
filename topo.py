@@ -75,7 +75,7 @@ if output_pts['lon'] is None:
   output_pts['lon'] = int(output_pts['lat'] * aspect_ratio)
 
 # fetch topo data
-locations_per_request = 256
+locations_per_request = 300
 
 def grouper(iterable, n, fillvalue=None):
   "Collect data into fixed-length chunks or blocks"
@@ -104,7 +104,7 @@ for locations in grouper(all_locations, locations_per_request):
   print("received", len(jo['results']), "results")
   for r in jo['results']:
     elev_data[(r['location']['lng'], r['location']['lat'])] = r['elevation']
-  time.sleep(0.1)
+  time.sleep(0.05)
 
 if mode=="3d":
   # output STL file
