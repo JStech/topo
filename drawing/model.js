@@ -127,12 +127,9 @@ function makeModel(results, x_vals, y_vals, start) {
     return;
   }
 
-  var max_elev = elev[0];
-  var min_elev = elev[0];
-  for (i=0; i<elev.length; i++) {
-    max_elev = Math.max(max_elev, elev[i]);
-    min_elev = Math.min(min_elev, elev[i]);
-  }
+  var max_elev = Math.max.apply(Math, elev);
+  var min_elev = Math.min.apply(Math, elev);
+
   console.log(max_elev, min_elev);
   for (i=0; i<elev.length; i++) {
     elev[i] = 10*(elev[i] - min_elev)/(max_elev - min_elev) + 5;

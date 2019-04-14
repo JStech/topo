@@ -112,9 +112,10 @@ for locations in grouper(all_locations, locations_per_request):
   resp = urllib.request.urlopen(url)
   s = resp.read().decode()
   jo = json.loads(s, parse_float=str)
-  print("received", len(jo['results']), "results")
+  print("received", len(jo['results']), "results. ", end="")
   for r in jo['results']:
     elev_data[(r['location']['lng'], r['location']['lat'])] = r['elevation']
+  print(len(elev_data), "/", len(all_locations))
   time.sleep(0.05)
 
 if mode=="3d":
