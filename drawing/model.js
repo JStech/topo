@@ -55,11 +55,12 @@ function init() {
   window.addEventListener( 'resize', onWindowResize, false );
 }
 
+var elev = [];
 function fetchElev() {
   var w = document.getElementById('width').value;
   var h = document.getElementById('height').value;
-  var x_max = Math.floor(20 * w/h);
-  var y_max = Math.floor(20 * h/w);
+  var x_max = Math.floor(20 * Math.sqrt(w/h));
+  var y_max = Math.floor(20 * Math.sqrt(h/w));
   locations = [];
   var i=0;
   var x_vals = [];
@@ -92,6 +93,7 @@ function fetchElev() {
     }
   }
 
+  elev = [];
   num_elev_calls = Math.ceil(locations.length/400);
   var i=0;
   var stop = false;
@@ -104,8 +106,6 @@ function fetchElev() {
           makeModel(results, x_vals, y_vals, t);
         } else if (status == 'OVER_QUERY_LIMIT') {
           stop = true;
-        } else {
-          console.log(status);
         }
       });
     if (i+400<locations.length && !stop) {
@@ -116,7 +116,6 @@ function fetchElev() {
   elevCallLoop();
 }
 
-var elev = [];
 function makeModel(results, x_vals, y_vals, start) {
   var i;
   for (i=0; i<results.length; i++) {
@@ -130,7 +129,6 @@ function makeModel(results, x_vals, y_vals, start) {
   var max_elev = Math.max.apply(Math, elev);
   var min_elev = Math.min.apply(Math, elev);
 
-  console.log(max_elev, min_elev);
   for (i=0; i<elev.length; i++) {
     elev[i] = 10*(elev[i] - min_elev)/(max_elev - min_elev) + 5;
   }
